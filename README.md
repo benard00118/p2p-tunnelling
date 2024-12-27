@@ -14,6 +14,11 @@ A secure peer-to-peer SSH tunneling solution with modern security features and c
 - Logging and error tracking
 - Multiple connection retry with backoff
 
+Prerequisites
+Python 3.x
+ssh and sshuttle installed on the system
+Appropriate permissions to configure network/firewall settings
+
 ## Installation
 
 1. Create and activate virtual environment:
