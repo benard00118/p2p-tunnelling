@@ -1,123 +1,67 @@
-# p2p-tunnelling
+# Enhanced P2P SSH Tunnel with NAT Traversal
 
-# Enhanced P2P SSH Tunnel
+## Description
+This tool provides a robust and secure method for establishing peer-to-peer SSH tunnels through various NAT traversal methods including UPnP, STUN, and TURN. It features:
 
-A secure peer-to-peer SSH tunneling solution with modern security features and cross-platform support.
-
-## Features
-
-- Modern key types (Ed25519, RSA 4096-bit, ECDSA)
-- Automatic firewall configuration
-- Public/private IP detection
-- Secure key management
-- Cross-platform support (Linux, macOS, WSL)
-- Logging and error tracking
-- Multiple connection retry with backoff
-
-Prerequisites
-Python 3.x
-ssh and sshuttle installed on the system
-Appropriate permissions to configure network/firewall settings
+- **NAT Traversal:** Automatically detects and uses the best available method for establishing connections.
+- **Dynamic DNS:** Supports DDNS updates to maintain connectivity with dynamic IP addresses.
+- **Security:** Implements advanced key management, encryption, and connection validation.
+- **Connection Monitoring:** Tracks and logs connection statistics with auto-recovery features.
+- **Comprehensive Logging:** Detailed logs for debugging and monitoring.
 
 ## Installation
 
-1. Create and activate virtual environment:
+### Python and Dependencies
 ```bash
-python3 -m venv venv
-source venv/bin/activate  # Linux/macOS
-# or
-.\venv\Scripts\activate  # Windows
+python3 -m pip install -r requirements.txt
 ```
+Ensure you have Python 3.7+ installed. Dependencies include:
+- `cryptography`
+- `aiohttp`
+- `aiodns`
+- `miniupnpc`
+- `requests`
+- `pystun`
 
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+### Installation
+Clone or download this repository to your local machine.
 
 ## Usage
 
-### Initial Setup
-
-Generate SSH keys and configure your environment:
+### Setup the Tunnel
 ```bash
-# Using modern Ed25519 keys (recommended)
-python p2p_tunnel.py --setup --key-type ed25519
-
-# With automatic firewall configuration
-python p2p_tunnel.py --setup --configure-firewall
+python3 p2p_tunnel.py setup --key-type ed25519
 ```
+Generates SSH keys and configures the firewall.
+
+### Connect to a Remote Host
+```bash
+python3 p2p_tunnel.py connect example.com
+```
+Establishes a tunnel to `example.com`. Use `--reverse` for reverse tunnels.
 
 ### Key Management
-
-Add a friend's public key:
 ```bash
-python p2p_tunnel.py --add-key "ssh-ed25519 AAAA..."
+python3 p2p_tunnel.py keys --add "ssh-rsa AAAA... comment"
+python3 p2p_tunnel.py keys --remove fingerprint
+python3 p2p_tunnel.py keys --list
 ```
+Add, remove, or list SSH keys.
 
-Remove a key:
+### Dynamic DNS Management
 ```bash
-python p2p_tunnel.py --remove-key "ssh-ed25519 AAAA..."
+python3 p2p_tunnel.py ddns --provider noip --hostname myhost.ddns.net --username user --password pass
 ```
+Updates your DDNS record.
 
-### Establish Connection
+## Configuration
+The tool uses `~/.ssh/p2p_tunnel.json` for configuration. Modify this file for custom settings.
 
-Connect to a remote host:
-```bash
-# Default port (22)
-python p2p_tunnel.py --connect friend@192.168.1.100
+## Security Considerations
 
-# Custom port
-python p2p_tunnel.py --connect friend@192.168.1.100 --port 2222
-```
+- Keys are rotated every 90 days by default. Adjust this in the `KeyManager` class.
+- Ensure only trusted keys are added to the authorized keys file.
+- Use strong passwords for DDNS services and consider using environment variables or secure storage for sensitive information.
 
-## Security Notes
-
-1. Use Ed25519 keys when possible (faster and more secure than RSA)
-2. Keep private keys secure (chmod 600)
-3. Regularly rotate keys
-4. Monitor logs for unauthorized access attempts
-
-## Troubleshooting
-
-1. Connection Issues:
-   - Check if the port is open in the firewall
-   - Verify both public and private IP connectivity
-   - Check the logs in `tunnel.log`
-
-2. Key Problems:
-   - Ensure correct permissions on ~/.ssh directory (700)
-   - Verify public key format
-   - Check authorized_keys file permissions (600)
-
-3. Firewall Issues:
-   - Run with --configure-firewall
-   - Manually verify firewall rules
-   - Check system logs for blocked connections
-
-## Logs
-
-Logs are stored in `tunnel.log` in the current directory. They include:
-- Connection attempts
-- Key operations
-- Error messages
-- Security events
-
-## Best Practices
-
-1. Key Management:
-   - Generate new keys periodically
-   - Use passphrase protection for private keys
-   - Keep backups of your keys
-   - Never share private keys
-
-2. Network Security:
-   - Use non-standard ports when possible
-   - Enable firewall logging
-   - Monitor connection attempts
-   - Use VPN when on public networks
-
-3. System Security:
-   - Keep system and dependencies updated
-   - Use strong passwords for system accounts
-   - Enable system auditing
-   - Regular security updates
+## Contributing
+Pull requests, issues, and suggestions are welcome. Please see [CONTRIBUTING.md](link to CONTRIBUTING.md if available).
