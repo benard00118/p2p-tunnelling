@@ -64,4 +64,4 @@ The tool uses `~/.ssh/p2p_tunnel.json` for configuration. Modify this file for c
 - Use strong passwords for DDNS services and consider using environment variables or secure storage for sensitive information.
 
 ## Contributing
-Pull requests, issues, and suggestions are welcome. Please see [CONTRIBUTING.md](link to CONTRIBUTING.md if available).
+Pull requests, issues, and suggestions are welcome. 
