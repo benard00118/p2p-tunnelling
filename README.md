@@ -33,7 +33,7 @@ A robust and secure implementation of peer-to-peer SSH tunneling with advanced f
 ## Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/p2p-ssh-tunnel.git
+   git clone https://github.com/benard00118/p2p-tunnelling.GIT
    cd p2p-ssh-tunnel
    ```
 
@@ -137,10 +137,3 @@ Contributions are welcome! Please submit a pull request or open an issue to disc
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 ```
-
-### Additional Tips
-- Update the repository URL in the installation section.
-- Customize the example commands and configuration settings as needed.
-- Add any additional sections relevant to your project, such as FAQs or contact information.
-
-This README template should provide a clear and concise guide for users to understand and use your P2P SSH Tunnel tool effectively.
