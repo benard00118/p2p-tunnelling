@@ -118,14 +118,19 @@ class TunnelConfig:
             with open(self.config_path) as f:
                 return json.load(f)
         return self._create_default_config()
-
+    
     def _create_default_config(self) -> Dict:
+        # Expand the home directory path
+        ssh_dir = Path.home() / '.ssh'
+        # Create .ssh directory if it doesn't exist
+        ssh_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        
         config = {
             'ssh_port': 22,
             'key_type': 'ed25519',
-            'key_path': str(Path.home() / '.ssh' / 'id_ed25519'),
-            'authorized_keys': str(Path.home() / '.ssh' / 'authorized_keys'),
-            'known_hosts': str(Path.home() / '.ssh' / 'known_hosts'),
+            'key_path': str(ssh_dir / 'id_ed25519'),
+            'authorized_keys': str(ssh_dir / 'authorized_keys'),
+            'known_hosts': str(ssh_dir / 'known_hosts'),
             'log_level': 'INFO',
             'retry_attempts': 3,
             'retry_delay': 5,
@@ -144,11 +149,14 @@ class KeyManager:
     def __init__(self, config: TunnelConfig):
         self.config = config
         self.logger = logging.getLogger('KeyManager')
-
+    
     def generate_key(self, key_type: str = None) -> Path:
         key_type = key_type or self.config.config['key_type']
-        key_path = Path(self.config.config['key_path'])
-
+        # Ensure we have a proper Path object and expand home directory
+        key_path = Path(self.config.config['key_path']).expanduser()
+        # Create parent directory if it doesn't exist
+        key_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    
         if key_type == 'ed25519':
             private_key = ed25519.Ed25519PrivateKey.generate()
         elif key_type == 'rsa':
@@ -158,7 +166,7 @@ class KeyManager:
             )
         else:
             raise ValueError(f"Unsupported key type: {key_type}")
-
+    
         # Save private key
         private_pem = private_key.private_bytes(
             encoding=Encoding.PEM,
@@ -167,7 +175,7 @@ class KeyManager:
         )
         with open(key_path, 'wb') as f:
             f.write(private_pem)
-
+    
         # Save public key
         public_key = private_key.public_key()
         public_pem = public_key.public_bytes(
@@ -177,12 +185,14 @@ class KeyManager:
         public_key_path = key_path.with_suffix('.pub')
         with open(public_key_path, 'wb') as f:
             f.write(public_pem)
-
+    
         # Set permissions
-        key_path.chmod(stat.S_IRUSR | stat.S_IWUSR)  # 600
-        public_key_path.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)  # 644
-
+        key_path.chmod(0o600)  # 600
+        public_key_path.chmod(0o644)  # 644
+    
         return key_path
+
+
     def rotate_keys(self, rotation_period_days: int = 90):
         # Check if the current key is older than the rotation period
         current_key_path = Path(self.config.config['key_path'])
@@ -601,6 +611,62 @@ class SecurityManager:
             return False
         except Exception:
             return False
+
+    async def list_keys(self) -> List[SSHKey]:
+        """List all authorized SSH keys"""
+        try:
+            keys = []
+            auth_keys_path = self.config_path / 'authorized_keys'
+            
+            if auth_keys_path.exists():
+                with open(auth_keys_path) as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#'):
+                            # Parse key line
+                            parts = line.split(None, 2)
+                            if len(parts) >= 2:
+                                key_type = parts[0]
+                                key_data = parts[1]
+                                comment = parts[2] if len(parts) > 2 else None
+                                
+                                fingerprint = self._generate_key_fingerprint(line)
+                                
+                                key = SSHKey(
+                                    key_type=key_type,
+                                    public_key=f"{key_type} {key_data}",
+                                    fingerprint=fingerprint,
+                                    added_date=self.key_cache.get(fingerprint, {}).get('added_at', 'unknown'),
+                                    last_used=self.key_cache.get(fingerprint, {}).get('last_used'),
+                                    comment=comment
+                                )
+                                keys.append(key)
+            
+            return keys
+            
+        except Exception as e:
+            self.logger.error(f"Failed to list keys: {e}")
+            raise
+
+    def _generate_key_fingerprint(self, key_data: str) -> str:
+        """Generate fingerprint for SSH key"""
+        try:
+            proc = subprocess.run(
+                ['ssh-keygen', '-lf', '-'],
+                input=key_data.encode(),
+                capture_output=True,
+                text=True
+            )
+            if proc.returncode == 0:
+                # Extract fingerprint from output
+                # Example output: "2048 SHA256:abcd1234... comment (RSA)"
+                return proc.stdout.split()[1]
+            else:
+                raise RuntimeError(f"ssh-keygen failed: {proc.stderr}")
+        except Exception as e:
+            self.logger.error(f"Failed to generate key fingerprint: {e}")
+            raise
+
 class NetworkManager:
     def __init__(self, system_info: SystemInfo):
         self.system_info = system_info
@@ -646,6 +712,35 @@ class NetworkManager:
         except (asyncio.TimeoutError, ConnectionError) as e:
             logging.error(f"Connection test failed: {e}")
             return False
+
+    def get_network_info(self) -> Dict[str, str]:
+        """Get network information including local and public IP"""
+        info = {
+            'local_ip': self._get_local_ip(),
+            'public_ip': None
+        }
+        
+        try:
+            response = requests.get('https://api.ipify.org?format=json', timeout=5)
+            if response.status_code == 200:
+                info['public_ip'] = response.json()['ip']
+        except Exception as e:
+            self.logger.warning(f"Failed to get public IP: {e}")
+            
+        return info
+
+    def _get_local_ip(self) -> str:
+        """Get local IP address"""
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(('8.8.8.8', 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception as e:
+            self.logger.error(f"Failed to get local IP: {e}")
+            return '127.0.0.1'
+
 class CommandHandler:
     """Handles execution of different commands"""
     
@@ -686,9 +781,9 @@ class CommandHandler:
             
             # Get network information
             net_info = self.network_manager.get_network_info()
-            self.logger.info(f"Local IP: {net_info.local_ip}")
-            if net_info.public_ip:
-                self.logger.info(f"Public IP: {net_info.public_ip}")
+            self.logger.info(f"Local IP: {net_info['local_ip']}")
+            if net_info['public_ip']:
+                self.logger.info(f"Public IP: {net_info['public_ip']}")
                 
         except Exception as e:
             self.logger.error(f"Setup failed: {e}")
@@ -1542,9 +1637,9 @@ class CommandHandler:
             
             # Get network information
             net_info = self.network_manager.get_network_info()
-            self.logger.info(f"Local IP: {net_info.local_ip}")
-            if net_info.public_ip:
-                self.logger.info(f"Public IP: {net_info.public_ip}")
+            self.logger.info(f"Local IP: {net_info['local_ip']}")
+            if net_info['public_ip']:
+                self.logger.info(f"Public IP: {net_info['public_ip']}")
                 
         except Exception as e:
             self.logger.error(f"Setup failed: {e}")
@@ -1712,3 +1807,4 @@ async def cleanup_resources(tunnel_manager: TunnelManager, rate_limiter: RateLim
 
 if __name__ == '__main__':
     asyncio.run(main())
+

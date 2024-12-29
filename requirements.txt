@@ -1,7 +1,7 @@
-aiodns==3.0.0
-aiohttp==3.8.1
-asyncio==3.4.3  
-cryptography==36.0.0
-miniupnpc==2.2.2
-requests==2.26.0
-pystun==0.1.0
+aiodns
+aiohttp
+asyncio
+cryptography
+miniupnpc
+requests
+pystun

@@ -1,6 +1,3 @@
-
-
-```markdown
 # P2P SSH Tunnel with NAT Traversal
 
 A robust and secure implementation of peer-to-peer SSH tunneling with advanced features:
@@ -11,17 +8,19 @@ A robust and secure implementation of peer-to-peer SSH tunneling with advanced f
 - Comprehensive logging
 
 ## Table of Contents
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-  - [Setup](#setup)
-  - [Connect](#connect)
-  - [Key Management](#key-management)
-  - [Dynamic DNS (DDNS) Management](#dynamic-dns-ddns-management)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
+- [P2P SSH Tunnel with NAT Traversal](#p2p-ssh-tunnel-with-nat-traversal)
+  - [Table of Contents](#table-of-contents)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
+  - [Usage](#usage)
+    - [Setup](#setup)
+    - [Connect](#connect)
+    - [Key Management](#key-management)
+    - [Dynamic DNS (DDNS) Management](#dynamic-dns-ddns-management)
+  - [Troubleshooting](#troubleshooting)
+  - [Contributing](#contributing)
+  - [License](#license)
 
 ## Prerequisites
 - Python 3.8 or higher
@@ -81,46 +80,46 @@ Example configuration:
 ### Setup
 To initialize and configure the tunnel:
 ```bash
-python p2p_tunnelling/p2p_tunnel.py setup --key-type {ed25519,rsa,ecdsa} --force
+python p2p_tunnel.py setup --key-type {ed25519,rsa,ecdsa} --force
 ```
 Example:
 ```bash
-python p2p_tunnelling/p2p_tunnel.py setup --key-type rsa --force
+python p2p_tunnel.py setup --key-type rsa --force
 ```
 
 ### Connect
 To connect to a remote host using the tunnel:
 ```bash
-python p2p_tunnelling/p2p_tunnel.py connect {remote_host} --port {PORT} --reverse --timeout {TIMEOUT}
+python p2p_tunnel.py connect {remote_host} --port {PORT} --reverse --timeout {TIMEOUT}
 ```
 Example:
 ```bash
-python p2p_tunnelling/p2p_tunnel.py connect example.com --port 2222 --reverse --timeout 60
+python p2p_tunnel.py connect example.com --port 2222 --reverse --timeout 60
 ```
 
 ### Key Management
 To manage SSH keys:
 - Add a public key:
   ```bash
-  python p2p_tunnelling/p2p_tunnel.py keys --add "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB3..."
+  python p2p_tunnel.py keys --add "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB3..."
   ```
 - Remove a key by fingerprint:
   ```bash
-  python p2p_tunnelling/p2p_tunnel.py keys --remove {FINGERPRINT}
+  python p2p_tunnel.py keys --remove {FINGERPRINT}
   ```
 - List all keys:
   ```bash
-  python p2p_tunnelling/p2p_tunnel.py keys --list
+  python p2p_tunnel.py keys --list
   ```
 
 ### Dynamic DNS (DDNS) Management
 To manage DDNS settings:
 ```bash
-python p2p_tunnelling/p2p_tunnel.py ddns --provider {PROVIDER} --hostname {HOSTNAME} --username {USERNAME} --password {PASSWORD}
+python p2p_tunnel.py ddns --provider {PROVIDER} --hostname {HOSTNAME} --username {USERNAME} --password {PASSWORD}
 ```
 Example:
 ```bash
-python p2p_tunnelling/p2p_tunnel.py ddns --provider no-ip --hostname example.ddns.net --username myuser --password mypass
+python p2p_tunnel.py ddns --provider no-ip --hostname example.ddns.net --username myuser --password mypass
 ```
 
 ## Troubleshooting
