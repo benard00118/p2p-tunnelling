@@ -1,6 +1,4 @@
-Sure, I can help you create a comprehensive README file for your P2P SSH Tunnel tool. A good README should provide clear instructions on installation, usage, and configuration. It should also include prerequisites, examples, and troubleshooting tips.
 
-Here's an example of what your README.md file might look like:
 
 ```markdown
 # P2P SSH Tunnel with NAT Traversal
