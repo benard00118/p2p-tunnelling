@@ -611,6 +611,62 @@ class SecurityManager:
             return False
         except Exception:
             return False
+
+    async def list_keys(self) -> List[SSHKey]:
+        """List all authorized SSH keys"""
+        try:
+            keys = []
+            auth_keys_path = self.config_path / 'authorized_keys'
+            
+            if auth_keys_path.exists():
+                with open(auth_keys_path) as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#'):
+                            # Parse key line
+                            parts = line.split(None, 2)
+                            if len(parts) >= 2:
+                                key_type = parts[0]
+                                key_data = parts[1]
+                                comment = parts[2] if len(parts) > 2 else None
+                                
+                                fingerprint = self._generate_key_fingerprint(line)
+                                
+                                key = SSHKey(
+                                    key_type=key_type,
+                                    public_key=f"{key_type} {key_data}",
+                                    fingerprint=fingerprint,
+                                    added_date=self.key_cache.get(fingerprint, {}).get('added_at', 'unknown'),
+                                    last_used=self.key_cache.get(fingerprint, {}).get('last_used'),
+                                    comment=comment
+                                )
+                                keys.append(key)
+            
+            return keys
+            
+        except Exception as e:
+            self.logger.error(f"Failed to list keys: {e}")
+            raise
+
+    def _generate_key_fingerprint(self, key_data: str) -> str:
+        """Generate fingerprint for SSH key"""
+        try:
+            proc = subprocess.run(
+                ['ssh-keygen', '-lf', '-'],
+                input=key_data.encode(),
+                capture_output=True,
+                text=True
+            )
+            if proc.returncode == 0:
+                # Extract fingerprint from output
+                # Example output: "2048 SHA256:abcd1234... comment (RSA)"
+                return proc.stdout.split()[1]
+            else:
+                raise RuntimeError(f"ssh-keygen failed: {proc.stderr}")
+        except Exception as e:
+            self.logger.error(f"Failed to generate key fingerprint: {e}")
+            raise
+
 class NetworkManager:
     def __init__(self, system_info: SystemInfo):
         self.system_info = system_info
@@ -1751,3 +1807,4 @@ async def cleanup_resources(tunnel_manager: TunnelManager, rate_limiter: RateLim
 
 if __name__ == '__main__':
     asyncio.run(main())
+
