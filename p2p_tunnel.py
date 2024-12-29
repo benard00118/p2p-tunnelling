@@ -1665,11 +1665,12 @@ async def main() -> None:
         
     except KeyboardInterrupt:
         logger.info("Operation cancelled by user")
-        await cleanup_resources()
+        await cleanup_resources(handler.tunnel_manager, handler.security_manager.rate_limiter, handler.tunnel_manager.monitor)
         sys.exit(0)
         
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
+        await cleanup_resources(handler.tunnel_manager, handler.security_manager.rate_limiter, handler.tunnel_manager.monitor)
         sys.exit(1)
 
 def detect_firewall_type() -> Optional[str]:
@@ -1687,10 +1688,27 @@ def detect_firewall_type() -> Optional[str]:
         return 'windows'
     return None
 
-async def cleanup_resources() -> None:
+async def cleanup_resources(tunnel_manager: TunnelManager, rate_limiter: RateLimiter, connection_monitor: ConnectionMonitor) -> None:
     """Clean up resources before exit"""
-    # Implementation would depend on what resources need cleanup
-    pass
+    # Stop the connection monitor
+    if connection_monitor:
+        await connection_monitor.stop()
+    
+    # Stop the rate limiter
+    if rate_limiter:
+        await rate_limiter.stop()
+    
+    # Clean up NAT traversal
+    if tunnel_manager and tunnel_manager.nat:
+        tunnel_manager.nat.cleanup()
+    
+    # Stop the tunnel process
+    if tunnel_manager and tunnel_manager.tunnel_process:
+        tunnel_manager.tunnel_process.terminate()
+        await tunnel_manager.tunnel_process.wait()
+    
+    # Log the cleanup
+    logging.info("All resources have been cleaned up.")
 
 if __name__ == '__main__':
     asyncio.run(main())
