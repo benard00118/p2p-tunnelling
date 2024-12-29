@@ -33,7 +33,7 @@ A robust and secure implementation of peer-to-peer SSH tunneling with advanced f
 ## Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/benard00118/p2p-tunnelling.GIT
+   git clone https://github.com/benard00118/p2p-tunnelling.git
    cd p2p-ssh-tunnel
    ```
 
@@ -136,4 +136,3 @@ Contributions are welcome! Please submit a pull request or open an issue to disc
 
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-```
