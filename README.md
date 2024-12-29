@@ -1,67 +1,146 @@
-# Enhanced P2P SSH Tunnel with NAT Traversal
+Sure, I can help you create a comprehensive README file for your P2P SSH Tunnel tool. A good README should provide clear instructions on installation, usage, and configuration. It should also include prerequisites, examples, and troubleshooting tips.
 
-## Description
-This tool provides a robust and secure method for establishing peer-to-peer SSH tunnels through various NAT traversal methods including UPnP, STUN, and TURN. It features:
+Here's an example of what your README.md file might look like:
 
-- **NAT Traversal:** Automatically detects and uses the best available method for establishing connections.
-- **Dynamic DNS:** Supports DDNS updates to maintain connectivity with dynamic IP addresses.
-- **Security:** Implements advanced key management, encryption, and connection validation.
-- **Connection Monitoring:** Tracks and logs connection statistics with auto-recovery features.
-- **Comprehensive Logging:** Detailed logs for debugging and monitoring.
+```markdown
+# P2P SSH Tunnel with NAT Traversal
+
+A robust and secure implementation of peer-to-peer SSH tunneling with advanced features:
+- NAT traversal (UPnP, STUN, TURN)
+- Dynamic DNS support
+- Advanced security features
+- Connection monitoring and auto-recovery
+- Comprehensive logging
+
+## Table of Contents
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+  - [Setup](#setup)
+  - [Connect](#connect)
+  - [Key Management](#key-management)
+  - [Dynamic DNS (DDNS) Management](#dynamic-dns-ddns-management)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Prerequisites
+- Python 3.8 or higher
+- Virtualenv (optional but recommended)
+- Required Python packages (listed in `requirements.txt`)
 
 ## Installation
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/p2p-ssh-tunnel.git
+   cd p2p-ssh-tunnel
+   ```
 
-### Python and Dependencies
-```bash
-python3 -m pip install -r requirements.txt
+2. Create and activate a virtual environment (optional but recommended):
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+   ```
+
+3. Install the required packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+## Configuration
+The default configuration file is located at `~/.ssh/p2p_tunnel.json`. You can customize the configuration by editing this file.
+
+Example configuration:
+```json
+{
+  "ssh_port": 22,
+  "key_type": "ed25519",
+  "key_path": "~/.ssh/id_ed25519",
+  "authorized_keys": "~/.ssh/authorized_keys",
+  "known_hosts": "~/.ssh/known_hosts",
+  "log_level": "INFO",
+  "retry_attempts": 3,
+  "retry_delay": 5,
+  "trusted_keys": {},
+  "security": {
+    "min_key_size": 2048,
+    "allowed_key_types": ["ed25519", "rsa"],
+    "allowed_ciphers": [
+      "chacha20-poly1305@openssh.com",
+      "aes256-gcm@openssh.com"
+    ],
+    "allowed_macs": [
+      "hmac-sha2-512-etm@openssh.com",
+      "hmac-sha2-256-etm@openssh.com"
+    ]
+  }
+}
 ```
-Ensure you have Python 3.7+ installed. Dependencies include:
-- `cryptography`
-- `aiohttp`
-- `aiodns`
-- `miniupnpc`
-- `requests`
-- `pystun`
-
-### Installation
-Clone or download this repository to your local machine.
 
 ## Usage
 
-### Setup the Tunnel
+### Setup
+To initialize and configure the tunnel:
 ```bash
-python3 p2p_tunnel.py setup --key-type ed25519
+python p2p_tunnelling/p2p_tunnel.py setup --key-type {ed25519,rsa,ecdsa} --force
 ```
-Generates SSH keys and configures the firewall.
+Example:
+```bash
+python p2p_tunnelling/p2p_tunnel.py setup --key-type rsa --force
+```
 
-### Connect to a Remote Host
+### Connect
+To connect to a remote host using the tunnel:
 ```bash
-python3 p2p_tunnel.py connect example.com
+python p2p_tunnelling/p2p_tunnel.py connect {remote_host} --port {PORT} --reverse --timeout {TIMEOUT}
 ```
-Establishes a tunnel to `example.com`. Use `--reverse` for reverse tunnels.
+Example:
+```bash
+python p2p_tunnelling/p2p_tunnel.py connect example.com --port 2222 --reverse --timeout 60
+```
 
 ### Key Management
+To manage SSH keys:
+- Add a public key:
+  ```bash
+  python p2p_tunnelling/p2p_tunnel.py keys --add "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB3..."
+  ```
+- Remove a key by fingerprint:
+  ```bash
+  python p2p_tunnelling/p2p_tunnel.py keys --remove {FINGERPRINT}
+  ```
+- List all keys:
+  ```bash
+  python p2p_tunnelling/p2p_tunnel.py keys --list
+  ```
+
+### Dynamic DNS (DDNS) Management
+To manage DDNS settings:
 ```bash
-python3 p2p_tunnel.py keys --add "ssh-rsa AAAA... comment"
-python3 p2p_tunnel.py keys --remove fingerprint
-python3 p2p_tunnel.py keys --list
+python p2p_tunnelling/p2p_tunnel.py ddns --provider {PROVIDER} --hostname {HOSTNAME} --username {USERNAME} --password {PASSWORD}
 ```
-Add, remove, or list SSH keys.
-
-### Dynamic DNS Management
+Example:
 ```bash
-python3 p2p_tunnel.py ddns --provider noip --hostname myhost.ddns.net --username user --password pass
+python p2p_tunnelling/p2p_tunnel.py ddns --provider no-ip --hostname example.ddns.net --username myuser --password mypass
 ```
-Updates your DDNS record.
 
-## Configuration
-The tool uses `~/.ssh/p2p_tunnel.json` for configuration. Modify this file for custom settings.
-
-## Security Considerations
-
-- Keys are rotated every 90 days by default. Adjust this in the `KeyManager` class.
-- Ensure only trusted keys are added to the authorized keys file.
-- Use strong passwords for DDNS services and consider using environment variables or secure storage for sensitive information.
+## Troubleshooting
+- Ensure all dependencies are installed.
+- Check the configuration file for errors.
+- Use the `--log-level DEBUG` option for detailed logging.
+- Ensure the firewall allows the necessary ports.
 
 ## Contributing
-Pull requests, issues, and suggestions are welcome. 
+Contributions are welcome! Please submit a pull request or open an issue to discuss your ideas.
+
+## License
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+```
+
+### Additional Tips
+- Update the repository URL in the installation section.
+- Customize the example commands and configuration settings as needed.
+- Add any additional sections relevant to your project, such as FAQs or contact information.
+
+This README template should provide a clear and concise guide for users to understand and use your P2P SSH Tunnel tool effectively.
