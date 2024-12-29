@@ -646,7 +646,6 @@ class NetworkManager:
         except (asyncio.TimeoutError, ConnectionError) as e:
             logging.error(f"Connection test failed: {e}")
             return False
-
 class CommandHandler:
     """Handles execution of different commands"""
     
@@ -660,6 +659,16 @@ class CommandHandler:
         self.network_manager = NetworkManager(self.system_info)
         self.key_manager = KeyManager(TunnelConfig(Path.home() / '.ssh' / 'p2p_tunnel.json'))  # Initialize KeyManager
         self.tunnel_manager = TunnelManager(config)
+    
+    @staticmethod
+    def _get_system_info() -> SystemInfo:
+        return SystemInfo(
+            platform=platform.system(),
+            is_wsl='Microsoft' in platform.uname().release,
+            firewall_type=detect_firewall_type(),
+            arch=platform.machine(),
+            python_version=platform.python_version()
+        )
     
     async def handle_setup(self, args: argparse.Namespace) -> None:
         """Handle setup command"""
@@ -684,7 +693,7 @@ class CommandHandler:
         except Exception as e:
             self.logger.error(f"Setup failed: {e}")
             raise
-
+    
     async def handle_connect(self, args: argparse.Namespace) -> None:
         """Handle connect command"""
         try:
@@ -712,6 +721,50 @@ class CommandHandler:
             
         except Exception as e:
             self.logger.error(f"Connection failed: {e}")
+            raise
+    
+    async def handle_keys(self, args: argparse.Namespace) -> None:
+        """Handle key management command"""
+        try:
+            if args.add:
+                await self.security_manager.add_authorized_key(args.add)
+                self.logger.info("Public key added successfully")
+                
+            elif args.remove:
+                await self.security_manager.remove_authorized_key(args.remove)
+                self.logger.info("Public key removed successfully")
+                
+            elif args.list:
+                keys = await self.security_manager.list_keys()
+                for key in keys:
+                    print(f"\nFingerprint: {key.fingerprint}")
+                    print(f"Type: {key.key_type}")
+                    print(f"Added: {key.added_date}")
+                    if key.comment:
+                        print(f"Comment: {key.comment}")
+                    
+        except Exception as e:
+            self.logger.error(f"Key management failed: {e}")
+            raise
+    
+    async def handle_ddns(self, args: argparse.Namespace) -> None:
+        """Handle DDNS command"""
+        try:
+            ddns_config = {
+                'provider': args.provider,
+                'hostname': args.hostname,
+                'username': args.username,
+                'password': args.password
+            }
+            
+            ddns = EnhancedDDNS(ddns_config, self.logger)
+            if await ddns.update():
+                self.logger.info("DDNS updated successfully")
+            else:
+                raise TunnelError("DDNS update failed")
+                
+        except Exception as e:
+            self.logger.error(f"DDNS management failed: {e}")
             raise
         
 class FirewallManager:
