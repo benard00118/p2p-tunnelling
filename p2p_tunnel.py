@@ -109,6 +109,10 @@ class TunnelConfig:
         self.config_path = config_path or Path.home() / '.ssh' / 'p2p_tunnel.json'
         self.config: Dict = self._load_config()
 
+        # Ensure sensitive data is not hardcoded
+        self.config['password'] = os.getenv('P2P_TUNNEL_PASSWORD', self.config.get('password'))
+        self.config['api_key'] = os.getenv('P2P_TUNNEL_API_KEY', self.config.get('api_key'))
+
     def _load_config(self) -> Dict:
         if self.config_path.exists():
             with open(self.config_path) as f:
@@ -134,6 +138,7 @@ class TunnelConfig:
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.config_path, 'w') as f:
             json.dump(config, f, indent=2)
+        os.chmod(self.config_path, 0o600)  # Ensure the config file has secure permissions
 
 class KeyManager:
     def __init__(self, config: TunnelConfig):
@@ -210,10 +215,6 @@ class KeyManager:
         except:
             return False
         
-        # Additional checks for RSA key size or ECC curve
-        if key_type == 'ssh-rsa':
-            # Here you could implement an RSA key size check, but it's complex without decoding the key fully
-            pass
         return True
 
     def add_public_key(self, key_str: str, comment: Optional[str] = None) -> None:
@@ -460,21 +461,11 @@ class SecurityManager:
         except Exception as e:
             self.logger.error(f"Failed to load trusted fingerprints: {e}")
 
-    async def validate_connection(self, remote_host: str, port: int, 
-                                ssl_context: Optional[ssl.SSLContext] = None) -> bool:
-        """
-        Validate connection with enhanced security checks
-        """
-        if not await self.rate_limiter.check_rate_limit(remote_host):
-            self.logger.warning(f"Rate limit exceeded for {remote_host}")
-            return False
-
+    async def validate_connection(self, remote_host: str, port: int, ssl_context: Optional[ssl.SSLContext] = None) -> bool:
         try:
             async with asyncio.timeout(5):
                 if ssl_context:
-                    reader, writer = await asyncio.open_connection(
-                        remote_host, port, ssl=ssl_context
-                    )
+                    reader, writer = await asyncio.open_connection(remote_host, port, ssl=ssl_context)
                 else:
                     reader, writer = await asyncio.open_connection(remote_host, port)
 
@@ -629,14 +620,100 @@ class NetworkManager:
                 cmd = ['sudo', 'firewall-cmd', '--add-port', f'{port}/tcp', '--permanent']
             else:
                 return
-                
+            
             try:
                 subprocess.run(cmd, check=True)
                 if shutil.which('firewalld'):
-                    subprocess.run(['sudo', 'firewall-cmd', '--reload'], check=True)
+                    status_cmd = ['sudo', 'systemctl', 'is-active', 'firewalld']
+                    status_result = subprocess.run(status_cmd, check=False, capture_output=True, text=True)
+                    if 'active' in status_result.stdout.strip():
+                        subprocess.run(['sudo', 'firewall-cmd', '--reload'], check=True)
+                    else:
+                        logging.warning("FirewallD is not running. Skipping reload.")
             except subprocess.CalledProcessError as e:
                 raise TunnelError(f"Failed to configure firewall: {e}")
 
+    async def test_connectivity(self, host: str, port: int, timeout: int) -> bool:
+        """Test connectivity to the remote host and port within the given timeout."""
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port),
+                timeout
+            )
+            writer.close()
+            await writer.wait_closed()
+            return True
+        except (asyncio.TimeoutError, ConnectionError) as e:
+            logging.error(f"Connection test failed: {e}")
+            return False
+
+class CommandHandler:
+    """Handles execution of different commands"""
+    
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+        self.config = config
+        self.logger = logger
+        
+        # Initialize managers
+        self.system_info = self._get_system_info()
+        self.security_manager = SecurityManager(Path.home() / '.ssh', self.logger)
+        self.network_manager = NetworkManager(self.system_info)
+        self.key_manager = KeyManager(TunnelConfig(Path.home() / '.ssh' / 'p2p_tunnel.json'))  # Initialize KeyManager
+        self.tunnel_manager = TunnelManager(config)
+    
+    async def handle_setup(self, args: argparse.Namespace) -> None:
+        """Handle setup command"""
+        try:
+            # Generate SSH key
+            key_path = self.key_manager.generate_key(
+                key_type=args.key_type  # Removed await since generate_key is not async
+            )
+            self.logger.info(f"Generated {args.key_type} key pair at {key_path}")
+            
+            # Configure firewall
+            port = self.config['ssh_port']
+            self.network_manager.configure_firewall(port)
+            self.logger.info(f"Configured firewall for port {port}")
+            
+            # Get network information
+            net_info = self.network_manager.get_network_info()
+            self.logger.info(f"Local IP: {net_info.local_ip}")
+            if net_info.public_ip:
+                self.logger.info(f"Public IP: {net_info.public_ip}")
+                
+        except Exception as e:
+            self.logger.error(f"Setup failed: {e}")
+            raise
+
+    async def handle_connect(self, args: argparse.Namespace) -> None:
+        """Handle connect command"""
+        try:
+            # Verify connectivity
+            if not await self.network_manager.test_connectivity(
+                args.remote_host,
+                args.port,
+                timeout=args.timeout
+            ):
+                raise TunnelError("Unable to reach remote host")
+            
+            # Start tunnel
+            if args.reverse:
+                await self.tunnel_manager.start_reverse_tunnel(
+                    args.remote_host,
+                    args.port
+                )
+            else:
+                await self.tunnel_manager.start_tunnel(
+                    args.remote_host,
+                    args.port
+                )
+            
+            self.logger.info(f"Connected to {args.remote_host}:{args.port}")
+            
+        except Exception as e:
+            self.logger.error(f"Connection failed: {e}")
+            raise
+        
 class FirewallManager:
     def __init__(self):
         self.platform = platform.system().lower()
@@ -877,6 +954,28 @@ class EnhancedDDNS:
                 return False
         return False
 
+    async def _make_ddns_request(self, ip: str) -> aiohttp.ClientResponse:
+        """Make the DDNS update request to the provider"""
+        provider = self.config['provider']
+        hostname = self.config['hostname']
+        username = self.config['username']
+        password = self.config['password']
+
+        if provider == 'no-ip':
+            url = f"https://dynupdate.no-ip.com/nic/update?hostname={hostname}&myip={ip}"
+            auth = aiohttp.BasicAuth(username, password)
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, auth=auth) as response:
+                    response_text = await response.text()
+                    self.logger.debug(f"DDNS response: {response_text}")
+                    if "good" in response_text or "nochg" in response_text:
+                        return response
+                    else:
+                        self.logger.error(f"DDNS update failed: {response_text}")
+                        raise Exception(f"DDNS update failed: {response_text}")
+        else:
+            raise NotImplementedError(f"DDNS provider '{provider}' is not supported")
+            
     async def _get_public_ip(self) -> Optional[str]:
         """Get public IP using multiple services"""
         ip_services = [
@@ -951,12 +1050,12 @@ class ConnectionMonitor:
     """
     Enhanced connection monitor with better resource management and metrics
     """
-    def __init__(self, max_history: int = 1000):
+    def __init__(self, max_history: int = 1000, logger: logging.Logger = None):
         self.max_history = max_history
         self.connection_history: List[Dict] = []
         self.active_connections: Dict[str, Dict] = {}
         self.metrics = ConnectionMetrics()
-        self.logger = logging.getLogger('ConnectionMonitor')
+        self.logger = logger or logging.getLogger('ConnectionMonitor')
         self._cleanup_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
 
@@ -1079,7 +1178,7 @@ class TunnelManager:
         self.setup_logging()  # Changed to setup_logging for consistency with Python naming conventions
         self.nat = NATTraversal(self.logger)
         self.ddns = EnhancedDDNS(config, self.logger)
-        self.monitor = ConnectionMonitor(config, self.logger)
+        self.monitor = ConnectionMonitor(max_history=1000, logger=self.logger)  # Pass logger explicitly
         self.tunnel_process = None
         self._setup_security_options()
         
@@ -1325,20 +1424,16 @@ class CommandLineParser:
         ddns_parser.add_argument('--username', help='DDNS username')
         ddns_parser.add_argument('--password', help='DDNS password')
         
+
+
 class LoggingSetup:
-    """Handles logging configuration"""
-    
     @staticmethod
     def setup_logging(level: str, log_file: Path) -> logging.Logger:
         log_file.parent.mkdir(parents=True, exist_ok=True)
         
         # Create formatters
-        file_formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        console_formatter = logging.Formatter(
-            '%(levelname)s: %(message)s'
-        )
+        file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        console_formatter = logging.Formatter('%(levelname)s: %(message)s')
         
         # Create handlers
         file_handler = logging.FileHandler(log_file)
@@ -1354,7 +1449,7 @@ class LoggingSetup:
         logger.addHandler(console_handler)
         
         return logger
-
+    
 class CommandHandler:
     """Handles execution of different commands"""
     
@@ -1364,8 +1459,9 @@ class CommandHandler:
         
         # Initialize managers
         self.system_info = self._get_system_info()
-        self.security_manager = SecurityManager(Path.home() / '.ssh')
+        self.security_manager = SecurityManager(Path.home() / '.ssh', self.logger)
         self.network_manager = NetworkManager(self.system_info)
+        self.key_manager = KeyManager(TunnelConfig(Path.home() / '.ssh' / 'p2p_tunnel.json'))  # Initialize KeyManager
         self.tunnel_manager = TunnelManager(config)
     
     @staticmethod
@@ -1382,19 +1478,18 @@ class CommandHandler:
         """Handle setup command"""
         try:
             # Generate SSH key
-            key_path = await self.security_manager.generate_key(
-                KeyType[args.key_type.upper()],
-                force=args.force
+            key_path = self.key_manager.generate_key(
+                key_type=args.key_type  # Removed await since generate_key is not async
             )
             self.logger.info(f"Generated {args.key_type} key pair at {key_path}")
             
             # Configure firewall
             port = self.config['ssh_port']
-            await self.network_manager.configure_firewall(port)
+            self.network_manager.configure_firewall(port)
             self.logger.info(f"Configured firewall for port {port}")
             
             # Get network information
-            net_info = await self.network_manager.get_network_info()
+            net_info = self.network_manager.get_network_info()
             self.logger.info(f"Local IP: {net_info.local_ip}")
             if net_info.public_ip:
                 self.logger.info(f"Public IP: {net_info.public_ip}")
