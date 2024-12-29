@@ -1,6 +1,3 @@
-
-
-```markdown
 # P2P SSH Tunnel with NAT Traversal
 
 A robust and secure implementation of peer-to-peer SSH tunneling with advanced features:
@@ -11,17 +8,19 @@ A robust and secure implementation of peer-to-peer SSH tunneling with advanced f
 - Comprehensive logging
 
 ## Table of Contents
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-  - [Setup](#setup)
-  - [Connect](#connect)
-  - [Key Management](#key-management)
-  - [Dynamic DNS (DDNS) Management](#dynamic-dns-ddns-management)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
+- [P2P SSH Tunnel with NAT Traversal](#p2p-ssh-tunnel-with-nat-traversal)
+  - [Table of Contents](#table-of-contents)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
+  - [Usage](#usage)
+    - [Setup](#setup)
+    - [Connect](#connect)
+    - [Key Management](#key-management)
+    - [Dynamic DNS (DDNS) Management](#dynamic-dns-ddns-management)
+  - [Troubleshooting](#troubleshooting)
+  - [Contributing](#contributing)
+  - [License](#license)
 
 ## Prerequisites
 - Python 3.8 or higher
