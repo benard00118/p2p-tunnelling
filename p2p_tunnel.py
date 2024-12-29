@@ -1449,7 +1449,6 @@ class LoggingSetup:
         logger.addHandler(console_handler)
         
         return logger
-    
 class CommandHandler:
     """Handles execution of different commands"""
     
